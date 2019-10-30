@@ -32,10 +32,12 @@ bool init() {
 	memset(dbname, 0x00, SQL_PARAM_SIZE);
 	memcpy(dbname,"homework" , sizeof("homework"));
 
+	char dnsip[] = "10.3.9.5";
+
 	//dns目标服务器配置
 	dnsServer.sin_family = AF_INET;
 	dnsServer.sin_port = htons(DNS_PORT);
-	inet_pton(AF_INET, "10.3.9.5", (void*)& dnsServer.sin_addr);
+	inet_pton(AF_INET, dnsip, (void*)& dnsServer.sin_addr);
 
 
 	//初始化SQL的链接
