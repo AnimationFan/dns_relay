@@ -4,6 +4,7 @@ HANDLE queueMutex = NULL;
 HANDLE queueEmpty = NULL;
 HANDLE queueFull = NULL;
 HANDLE sendMutex = NULL;
+HANDLE SQLMutex = NULL;
 std::queue<DNSSeg*> taskQueue = std::queue<DNSSeg*>();
 char host[SQL_PARAM_SIZE] ;
 char user[SQL_PARAM_SIZE];
@@ -11,6 +12,8 @@ char password[SQL_PARAM_SIZE] ;
 char dbname[SQL_PARAM_SIZE] ;
 int port = 3306;
 sockaddr_in dnsServer;
+MYSQL* db=NULL;
+bool connectSQL;
 
 
 
@@ -21,10 +24,10 @@ bool init() {
 	memcpy(host, "127.0.0.1", sizeof("107.0.0.1"));
 	
 	memset(user, 0x00,SQL_PARAM_SIZE);
-	memcpy(user,"root",sizeof("root"));
+	memcpy(user,"homework_user",sizeof("homework_user"));
 
 	memset(password, 0x00, SQL_PARAM_SIZE);
-	memcpy(password,"qq14624998",sizeof("qq14624998"));
+	memcpy(password,"123456",sizeof("123456"));
 	
 	memset(dbname, 0x00, SQL_PARAM_SIZE);
 	memcpy(dbname,"homework" , sizeof("homework"));
@@ -34,9 +37,17 @@ bool init() {
 	dnsServer.sin_port = htons(DNS_PORT);
 	inet_pton(AF_INET, "10.3.9.5", (void*)& dnsServer.sin_addr);
 
+
+	//初始化SQL的链接
+	db = mysql_init((MYSQL*)0);
+	connectSQL = mysql_real_connect(db, host, user, password, dbname, port, NULL, 0);
 	//其余初始化函数
-	bool resCT = createThreadPool();
-	bool resCS = initSemaphere();
+	bool resCT;
+	bool resCS;
+	if (connectSQL) {
+		resCT = createThreadPool();
+		resCS = initSemaphere();
+	}
 	return resCT && resCS;
 }
 
@@ -59,6 +70,7 @@ bool initSemaphere() {
 	queueEmpty = CreateSemaphore(NULL, 8, 8, NULL);
 	queueFull = CreateSemaphore(NULL, 0, 8, NULL);
 	sendMutex = CreateSemaphore(NULL, 1, 1, NULL);
+	SQLMutex = CreateSemaphore(NULL, 1, 1, NULL);
 	return true;
 }
 
@@ -94,9 +106,8 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 		createSock = false;
 	}
 
-	//创建数据库链接
-	MYSQL* db = mysql_init((MYSQL*)0);
-	bool connectSQL = mysql_real_connect(db, host, user, password, dbname, port, NULL, 0);
+	
+	
 	
 	while (createSock&&connectSQL)
 	{
@@ -136,7 +147,7 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 				{
 					bool getResult = getDomain(domain, dnsSeg->addrQue[i]->addr);
 					//从问题中获取域名获取查询域名,
-					bool sqlIP = getIP(domain, IP, db);
+					bool sqlIP = getIP(domain, IP);
 					if (sqlIP) {
 						if(((IP.length()<=16)&&(dnsSeg->addrQue[i]->type==0x0001))
 							||((IP.length()>11)&&(dnsSeg->addrQue[i]->type==0x001c)))//防止IPV4地址发给IPv6报文
@@ -192,6 +203,14 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 					WaitForSingleObject(sendMutex, INFINITE);//等待控制信号量
 					//从dnsSeg.souce进行发送
 					sendto(FDSOCK, dnsSeg->source, dnsSeg->len, 0, (SOCKADDR*)& dnsSeg->clientAddr, sizeof(SOCKADDR));
+					if (EN_DEBUG) 
+					{
+						for (int i = 0; i < dnsSeg->len; i++)
+						{
+							if (i % 16 == 0) printf("\n");
+							printf("0x%.2x ", (unsigned char)dnsSeg->source[i]);
+						}
+					}
 					//发送信息
 					ReleaseSemaphore(sendMutex, 1, NULL);//释放相应信号量
 			}
@@ -210,14 +229,17 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 	if (createSock == false && EN_DEBUG)
 		std::cout << "thread create Sock failed" << std::endl;
 	if (connectSQL == false && EN_DEBUG)
+	{
+		WaitForSingleObject(SQLMutex, INFINITE);
 		std::cout << " thread connect SQL error" << mysql_error(db) << std::endl;
+		ReleaseSemaphore(SQLMutex,1,NULL);
+	}
 	if (EN_DEBUG) {
 		std::cout << "thread end" << std::endl;
 	}
 
 	//结束后处理
-	if (connectSQL)
-		mysql_close(db);
+	
 	return 0;
 }
 
@@ -320,6 +342,15 @@ void recvDNS(char* buffer,int bufferSize,DNSSeg &dnsSeg) {
 
 	dnsSeg.addrAns =new AddrAns*[dnsSeg.queNum];
 	dnsSeg.ansNum = 0;
+
+	if (EN_DEBUG)
+	{
+		for (int i = 0; i < j; i++) {
+			if (i % 16 == 0)
+				printf("\n");
+			printf("0x%.2x ", dnsSeg.source[i]);
+		}
+	}
 }
 
 void transFlag(short flag,DNSFlag &cflag) {
@@ -353,20 +384,27 @@ bool getDomain(std::string& s, char* cstr) {
 }
 
 //未存在的内容IP将被返回“”
-bool getIP(std::string& domain, std::string& IP, MYSQL* db) {
+bool getIP(std::string& domain, std::string& IP) {
+	WaitForSingleObject(SQLMutex, INFINITE);
 	MYSQL_RES* queryRes = NULL;
 	MYSQL_ROW row;
 
 	std::string question="select ip from dns where domain = '";
 	question = question + domain;
-	question = question + "'";
+	question = question + "'    ";
+	
 	int res = mysql_real_query(db, question.c_str(), (unsigned int)question.length());//查询成功是0
-	if (res)
+	if (res) {
+		ReleaseSemaphore(SQLMutex, 1, NULL);
 		return false;
+	}
 	else {
 		queryRes = mysql_store_result(db);
 		if (queryRes == NULL)
+		{
+			ReleaseSemaphore(SQLMutex, 1, NULL);
 			return false;
+		}
 		else {
 			if(row=mysql_fetch_row(queryRes))
 			IP = std::string(row[0]);
@@ -374,7 +412,11 @@ bool getIP(std::string& domain, std::string& IP, MYSQL* db) {
 	}
 	mysql_free_result(queryRes);
 	if (!IP.compare(""))
+	{
+		ReleaseSemaphore(SQLMutex, 1, NULL);
 		return false;
+	}
+	ReleaseSemaphore(SQLMutex, 1, NULL);
 	return true;
 }
 
@@ -405,19 +447,10 @@ bool relaySeg(DNSSeg* dnsSeg, SOCKET fdSock, char* localsendBuffer, char* localr
 			break;
 		}
 	}
-	//识别问题
+	//识别应答内容
 	for (int i = 0; i < ansNum; i++)
 	{
-		//unsigned short type = ((unsigned short)localrecvBuffer[j + 2] << 8 | (unsigned short)localrecvBuffer[j + 3]);
 		unsigned short len = ((unsigned short)localrecvBuffer[j + 10] | (unsigned short)localrecvBuffer[j + 11]);
-		//if (type == 0x0001 || type == 0x001c)
-		//{
-		//	//std::string ans = std::string(recvBuffer[j+12],len);
-		//	char* ip = new char[len];
-		//	memcpy(ip, &recvBuffer[j + 12], len);
-		//	system("pause");
-		//}
-		//else 
 		j = j + 12 + len;
 	}
 	//释放原本储存的报文进行替换

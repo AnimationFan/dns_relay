@@ -1,4 +1,6 @@
 #pragma once
+//author is zhuoran 
+//github. accout:AnimationFan
 #include <iostream>
 #include<WinSock2.h>
 #include<WS2tcpip.h>
@@ -11,12 +13,13 @@
 
 //常量 部分
 #define DNS_PORT 53
-#define POOL_SIZE 4
+#define POOL_SIZE 1
 #define QUEUE_SIZE 8
 #define BUFFER_SIZE 1024
 #define EN_DEBUG 1
 #define SQL_PARAM_SIZE 30
 #define TTL 300
+
 
 
 //。。。定义线程转发使用的起始端口
@@ -75,6 +78,8 @@ extern HANDLE queueMutex;
 extern HANDLE queueEmpty;
 extern HANDLE queueFull;	
 extern HANDLE sendMutex;//主要工作线程发送响应报文时控制端口使用
+extern HANDLE SQLMutex;//数据库链接互斥使用
+
 extern SOCKET FDSOCK;//使用的socket描述符
 extern char host[SQL_PARAM_SIZE];
 extern char user[SQL_PARAM_SIZE];
@@ -82,7 +87,8 @@ extern char password[SQL_PARAM_SIZE];
 extern char dbname[SQL_PARAM_SIZE];
 extern int port;
 extern sockaddr_in dnsServer;
-
+extern MYSQL* db;
+extern bool connectSQL;
 
 //connect
 SOCKET connect();
@@ -97,11 +103,9 @@ bool initSemaphere();
 bool init();
 DWORD WINAPI ThreadFunc(LPVOID p);
 bool getDomain(std::string& s, char* cstr);
-bool getIP(std::string& domain, std::string& IP, MYSQL* db);//SQL中完成IP查询
+bool getIP(std::string& domain, std::string& IP);//SQL中完成IP查询
 bool relaySeg(DNSSeg* dnsSeg, SOCKET fdSock, char* localsendBuffer, char* localrecvBuffer, sockaddr_in localDNS);
 bool genResponse(DNSSeg* dnsSeg);//生成目标报文
 bool  delDNS(DNSSeg*  dnsSeg);
-bool writeIP(std::string& IP, DNSSeg* dnsSeg, int i);
-
 //test.cpp
 void threadTest(int p, sockaddr_in dnsServer);

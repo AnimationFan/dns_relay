@@ -1,61 +1,50 @@
 ﻿#include"stafx.h"
 //bind绑定了的会使用固定的端口，而没有使用bind绑定的话系统会随机分配端口
-/*
+
 	int main()
 	{
-		
+		SOCKET fdSock = connect();
+		processor(fdSock);
+		if (connectSQL)
+			mysql_close(db);
+		closesocket(fdSock);
+		WSACleanup();
 		return 0;
 	}
-*/
-
-int main() {
-	//初始化网络环境
-	WSADATA wsaData;
-	int nRet = WSAStartup(MAKEWORD(2,2),&wsaData);
-	if (nRet != 0)
-	{
-		std::cout << "error happened when start up" << std::endl;
-		return -1;
-	}
-	
-	//模拟 的报文内容
-	char seg[] = "\x93\x76\x01\x00\x00\x01" \
-		"\x00\x00\x00\x00\x00\x00\x03\x77\x77\x77\x04\x62\x69\x6e\x67\x03" \
-		"\x63\x6f\x6d\x00\x00\x01\x00\x01";//对www.bing.com 的询问
-	char* recvBuffer = new char[BUFFER_SIZE];
-	memcpy(recvBuffer, seg, sizeof(seg));
-	
-	//SQL相关参数配置
-	memset(host, 0x00, SQL_PARAM_SIZE);
-	memcpy(host, "127.0.0.1", sizeof("107.0.0.1"));
-
-	memset(user, 0x00, SQL_PARAM_SIZE);
-	memcpy(user, "root", sizeof("root"));
-
-	memset(password, 0x00, SQL_PARAM_SIZE);
-	memcpy(password, "qq14624998", sizeof("qq14624998"));
-
-	memset(dbname, 0x00, SQL_PARAM_SIZE);
-	memcpy(dbname, "homework", sizeof("homework"));
-
-	//dns目标服务器配置
-	dnsServer.sin_family = AF_INET;
-	dnsServer.sin_port = htons(DNS_PORT);
-	inet_pton(AF_INET, "10.3.9.5", (void*)& dnsServer.sin_addr);
-
-	DNSSeg* dnsSeg = new DNSSeg;
-	initSemaphere();
-	recvDNS(recvBuffer, BUFFER_SIZE, *dnsSeg);
-	
-	assignWork(dnsSeg);
 
 
-
-
-	
-	system("pause");
-	return 0;
-}
+//int main() {
+//	//初始化网络环境
+//	WSADATA wsaData;
+//	int nRet = WSAStartup(MAKEWORD(2,2),&wsaData);
+//	if (nRet != 0)
+//	{
+//		std::cout << "error happened when start up" << std::endl;
+//		return -1;
+//	}
+//	
+//	//模拟 的报文内容
+//	char seg[] = "\x93\x76\x01\x00\x00\x01" \
+//		"\x00\x00\x00\x00\x00\x00\x03\x77\x77\x77\x04\x62\x69\x6e\x67\x03" \
+//		"\x63\x6f\x6d\x00\x00\x01\x00\x01";//对www.bing.com 的询问
+//	char* recvBuffer = new char[BUFFER_SIZE];
+//	memcpy(recvBuffer, seg, sizeof(seg));
+//	
+//	init();
+//
+//	DNSSeg* dnsSeg = new DNSSeg;
+//	initSemaphere();
+//	recvDNS(recvBuffer, BUFFER_SIZE, *dnsSeg);
+//	assignWork(dnsSeg);
+//
+//	while (true);
+//	//进程后处理
+//	if (connectSQL)
+//		mysql_close(db);
+//	
+//	system("pause");
+//	return 0;
+//}
 
 
 //genResponse()测试报文生成
