@@ -205,6 +205,14 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 					WaitForSingleObject(sendMutex, INFINITE);//等待控制信号量
 					//从dnsSeg.souce进行发送
 					sendto(FDSOCK, dnsSeg->source, dnsSeg->len, 0, (SOCKADDR*)& dnsSeg->clientAddr, sizeof(SOCKADDR));
+					if (dnsSeg->mid==false) {
+						if (WORK_SHOW) {
+							for (int i = 0; i < 4; i++)
+								printf("0x%.2x", (unsigned char)dnsSeg->addrAns[0]->ip[i]);
+							printf("\n");
+						}
+					}
+					
 					if (EN_DEBUG) 
 					{
 						for (int i = 0; i < dnsSeg->len; i++)
