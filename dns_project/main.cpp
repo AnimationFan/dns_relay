@@ -1,16 +1,26 @@
 ﻿#include"stafx.h"
 //bind绑定了的会使用固定的端口，而没有使用bind绑定的话系统会随机分配端口
 
-	int main()
+
+int main()
+{
+	SOCKET fdSock = connect();
+	processor(fdSock);
+	if (!connectSQL)
 	{
-		SOCKET fdSock = connect();
-		processor(fdSock);
-		if (connectSQL)
-			mysql_close(db);
-		closesocket(fdSock);
-		WSACleanup();
+		if (EN_DEBUG)
+			std::cout << "faile to connect SQL" << std::endl;
+		std::cout << mysql_error(db);
+		std::cout << "end" << std::endl;
+		system("pause");
 		return 0;
 	}
+	mysql_close(db);
+	closesocket(fdSock);
+	WSACleanup();
+	return 0;
+}
+
 
 
 //int main() {

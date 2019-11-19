@@ -39,4 +39,7 @@
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\x64\Debug\config.txt" />
+  </ItemGroup>
 </Project>

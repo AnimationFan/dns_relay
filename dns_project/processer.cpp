@@ -6,33 +6,61 @@ HANDLE queueFull = NULL;
 HANDLE sendMutex = NULL;
 HANDLE SQLMutex = NULL;
 std::queue<DNSSeg*> taskQueue = std::queue<DNSSeg*>();
-char host[SQL_PARAM_SIZE] ;
+char host[SQL_PARAM_SIZE];
 char user[SQL_PARAM_SIZE];
-char password[SQL_PARAM_SIZE] ;
-char dbname[SQL_PARAM_SIZE] ;
+char password[SQL_PARAM_SIZE];
+char dbname[SQL_PARAM_SIZE];
+char dnsip[SQL_PARAM_SIZE];
 int port = 3306;
 sockaddr_in dnsServer;
-MYSQL* db=NULL;
+MYSQL* db = NULL;
 bool connectSQL;
 
+bool readConfig() {
+	std::ifstream readFile;
+	readFile.open("config.txt");
 
+	int isopen = 0;
+	isopen = readFile.is_open();
+	if (!isopen)	return false;
+	//std::cout << isopen << std::endl;
+
+	readFile >> host;//遇到空格输出停止，空格后的内容无法输出，'\0'是截止符，如图3所示
+	readFile >> user;
+	readFile >> password;
+	readFile >> dbname;
+	readFile >> dnsip;
+
+
+	std::cout << "DBhost:\t\t" << host << std::endl;
+	std::cout << "DBuser:\t\t" << user << std::endl;
+	std::cout << "DBpassword:\t" << password << std::endl;
+	std::cout << "DBname:\t\t" << dbname << std::endl;
+	std::cout << "DNSserver:\t" << dnsip << std::endl;
+
+	readFile.close();
+	return 1;
+
+}
 
 //后期修改为文件读取的形式
 bool init() {
 	//SQL相关参数配置
-	memset(host, 0x00, SQL_PARAM_SIZE);
+/*	memset(host, 0x00, SQL_PARAM_SIZE);
 	memcpy(host, "127.0.0.1", sizeof("107.0.0.1"));
-	
+
 	memset(user, 0x00,SQL_PARAM_SIZE);
-	memcpy(user,"homework_user",sizeof("homework_user"));
+	memcpy(user,"root",sizeof("root"));
 
 	memset(password, 0x00, SQL_PARAM_SIZE);
-	memcpy(password,"123456",sizeof("123456"));
-	
+	memcpy(password,"admin",sizeof("admin"));
+
 	memset(dbname, 0x00, SQL_PARAM_SIZE);
 	memcpy(dbname,"homework" , sizeof("homework"));
+	*/
+	//读取配置文件
+	if (!readConfig()) return 0;
 
-	char dnsip[] = "10.3.9.5";
 
 	//dns目标服务器配置
 	dnsServer.sin_family = AF_INET;
@@ -44,8 +72,8 @@ bool init() {
 	db = mysql_init((MYSQL*)0);
 	connectSQL = mysql_real_connect(db, host, user, password, dbname, port, NULL, 0);
 	//其余初始化函数
-	bool resCT;
-	bool resCS;
+	bool resCT = true;
+	bool resCS = true;
 	if (connectSQL) {
 		resCT = createThreadPool();
 		resCS = initSemaphere();
@@ -59,7 +87,7 @@ bool createThreadPool() {
 	for (int i = 0; i < POOL_SIZE; i++)
 	{
 		LPDWORD threadID = NULL;
-		HANDLE result=CreateThread(NULL, 0,ThreadFunc,(LPVOID)(THREAD_SOCK+i),0,threadID);
+		HANDLE result = CreateThread(NULL, 0, ThreadFunc, (LPVOID)(THREAD_SOCK + i), 0, threadID);
 		if (result == NULL)
 			return false;
 	}
@@ -67,7 +95,7 @@ bool createThreadPool() {
 }
 //初始化信号量
 bool initSemaphere() {
-	queueMutex=CreateSemaphore(NULL,1,1,NULL);
+	queueMutex = CreateSemaphore(NULL, 1, 1, NULL);
 	//安全参数，初值，最大值,名称
 	queueEmpty = CreateSemaphore(NULL, 8, 8, NULL);
 	queueFull = CreateSemaphore(NULL, 0, 8, NULL);
@@ -78,9 +106,9 @@ bool initSemaphere() {
 
 
 //线程执行函数
-DWORD WINAPI ThreadFunc(LPVOID p){
+DWORD WINAPI ThreadFunc(LPVOID p) {
 	int sock = (int)p;
-	
+
 	SOCKADDR_IN thAddr;
 	thAddr.sin_port = htons(sock);
 	thAddr.sin_family = AF_INET;
@@ -101,21 +129,21 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 
 
 	//绑定中继端口
-	int bindRes = bind(tfdSock, (SOCKADDR*)&thAddr, sizeof(SOCKADDR));
-	if(bindRes==SOCKET_ERROR&&EN_DEBUG)
+	int bindRes = bind(tfdSock, (SOCKADDR*)& thAddr, sizeof(SOCKADDR));
+	if (bindRes == SOCKET_ERROR && EN_DEBUG)
 	{
 		std::cout << "tread bind socket failed" << std::endl;
 		createSock = false;
 	}
 
-	
-	
-	
-	while (createSock&&connectSQL)
+
+
+
+	while (createSock && connectSQL)
 	{
 		DNSSeg* dnsSeg = NULL;
 		//停等任务消息
-		
+
 		WaitForSingleObject(queueFull, INFINITE);
 		//等待queueFull信号
 		int waitResult = WaitForSingleObject(queueMutex, 2000);
@@ -131,58 +159,58 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 		{
 			if (EN_DEBUG == 1)
 			{
-					std::cout << "wait for mutex failed" << std::endl;
+				std::cout << "wait for mutex failed" << std::endl;
 			}
 		}
 		ReleaseSemaphore(queueEmpty, 1, NULL);
 		//释放queueEmpty信号
-		if (dnsSeg != NULL) 
+		if (dnsSeg != NULL)
 		{
 			bool queryResult = false;
 			bool relayRes = false;
 			bool resGetIP = false;
 			bool send = true;
-			for (int i = 0; i < dnsSeg->queNum; i++)	
+			for (int i = 0; i < dnsSeg->queNum; i++)
 			{
 				std::string domain = "", IP = "";
-				if (dnsSeg->addrQue[i]->type == 0x0001 || dnsSeg->addrQue[i]->type == 0x001c) 
+				if (dnsSeg->addrQue[i]->type == 0x0001 || dnsSeg->addrQue[i]->type == 0x001c)
 				{
 					bool getResult = getDomain(domain, dnsSeg->addrQue[i]->addr);
 					//从问题中获取域名获取查询域名,
 					bool sqlIP = getIP(domain, IP);
 					if (sqlIP) {
-						if(((IP.length()<=16)&&(dnsSeg->addrQue[i]->type==0x0001))
-							||((IP.length()>11)&&(dnsSeg->addrQue[i]->type==0x001c)))//防止IPV4地址发给IPv6报文
-						resGetIP = true;
+						if (((IP.length() <= 16) && (dnsSeg->addrQue[i]->type == 0x0001))
+							|| ((IP.length() > 11) && (dnsSeg->addrQue[i]->type == 0x001c)))//防止IPV4地址发给IPv6报文
+							resGetIP = true;
 					}
-						
+
 					if ((!getResult) && EN_DEBUG)
 						std::cout << "get domain_string failed" << std::endl;
 				}
-					
+
 				//对于已经获取到的IP生成应答内容
-					if (resGetIP) {
-						dnsSeg->addrAns[dnsSeg->ansNum] = new AddrAns;
-						dnsSeg->addrAns[dnsSeg->ansNum]->aclass=dnsSeg->addrQue[i]->qclass;
-						//偏移量为具体偏移最高两位|c000
-						dnsSeg->addrAns[dnsSeg->ansNum]->name = dnsSeg->addrQue[i]->begin|0xc000;
-						dnsSeg->addrAns[dnsSeg->ansNum]->type = dnsSeg->addrQue[i]->type;
-						dnsSeg->addrAns[dnsSeg->ansNum]->live = 0x0000012c;
-						if (dnsSeg->addrQue[i]->type == 0x0001) {//ipv4
-							dnsSeg->addrAns[dnsSeg->ansNum]->len = 0x0004;
-							dnsSeg->addrAns[dnsSeg->ansNum]->ip = new char[4];
-							inet_pton(AF_INET, IP.c_str(), dnsSeg->addrAns[dnsSeg->ansNum]->ip);
-						}
-						if (dnsSeg->addrQue[i]->type == 0x001c) {//ipv6
-							dnsSeg->addrAns[dnsSeg->ansNum]->len = 0x0010;
-							dnsSeg->addrAns[dnsSeg->ansNum]->ip = new char[16];
-							inet_pton(AF_INET6, IP.c_str(), dnsSeg->addrAns[dnsSeg->ansNum]->ip);
-						}
-						dnsSeg->ansNum++;
-						send = true;
-					}//完成目标地址的转换和写入
+				if (resGetIP) {
+					dnsSeg->addrAns[dnsSeg->ansNum] = new AddrAns;
+					dnsSeg->addrAns[dnsSeg->ansNum]->aclass = dnsSeg->addrQue[i]->qclass;
+					//偏移量为具体偏移最高两位|c000
+					dnsSeg->addrAns[dnsSeg->ansNum]->name = dnsSeg->addrQue[i]->begin | 0xc000;
+					dnsSeg->addrAns[dnsSeg->ansNum]->type = dnsSeg->addrQue[i]->type;
+					dnsSeg->addrAns[dnsSeg->ansNum]->live = 0x0000012c;
+					if (dnsSeg->addrQue[i]->type == 0x0001) {//ipv4
+						dnsSeg->addrAns[dnsSeg->ansNum]->len = 0x0004;
+						dnsSeg->addrAns[dnsSeg->ansNum]->ip = new char[4];
+						inet_pton(AF_INET, IP.c_str(), dnsSeg->addrAns[dnsSeg->ansNum]->ip);
+					}
+					if (dnsSeg->addrQue[i]->type == 0x001c) {//ipv6
+						dnsSeg->addrAns[dnsSeg->ansNum]->len = 0x0010;
+						dnsSeg->addrAns[dnsSeg->ansNum]->ip = new char[16];
+						inet_pton(AF_INET6, IP.c_str(), dnsSeg->addrAns[dnsSeg->ansNum]->ip);
+					}
+					dnsSeg->ansNum++;
+					send = true;
+				}//完成目标地址的转换和写入
 			}//处理过程
-			
+
 			//查询成功时生成报文
 			if (resGetIP)
 			{
@@ -194,37 +222,29 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 			if (resGetIP == false)
 			{
 				if (relayRes = relaySeg(dnsSeg, tfdSock, localsendBuffer, localrecvBuffer, dnsServer))
-					send=true;
+					send = true;
 				else
 					send = false;
 			}
 			//中继,查找成功时置resGetIP为true，转发整个报文并将最终结果进行转发
-			
-			if (send) 
+
+			if (send)
 			{
-					WaitForSingleObject(sendMutex, INFINITE);//等待控制信号量
-					//从dnsSeg.souce进行发送
-					sendto(FDSOCK, dnsSeg->source, dnsSeg->len, 0, (SOCKADDR*)& dnsSeg->clientAddr, sizeof(SOCKADDR));
-					if (dnsSeg->mid==false) {
-						if (WORK_SHOW) {
-							for (int i = 0; i < 4; i++)
-								printf("0x%.2x", (unsigned char)dnsSeg->addrAns[0]->ip[i]);
-							printf("\n");
-						}
-					}
-					
-					if (EN_DEBUG) 
+				WaitForSingleObject(sendMutex, INFINITE);//等待控制信号量
+				//从dnsSeg.souce进行发送
+				sendto(FDSOCK, dnsSeg->source, dnsSeg->len, 0, (SOCKADDR*)& dnsSeg->clientAddr, sizeof(SOCKADDR));
+				if (EN_DEBUG )
+				{
+					for (int i = 0; i < dnsSeg->len; i++)
 					{
-						for (int i = 0; i < dnsSeg->len; i++)
-						{
-							if (i % 16 == 0) printf("\n");
-							printf("0x%.2x ", (unsigned char)dnsSeg->source[i]);
-						}
+						if (i % 16 == 0) printf("\n");
+						printf("0x%.2x ", (unsigned char)dnsSeg->source[i]);
 					}
-					//发送信息
-					ReleaseSemaphore(sendMutex, 1, NULL);//释放相应信号量
+				}
+				//发送信息
+				ReleaseSemaphore(sendMutex, 1, NULL);//释放相应信号量
 			}
-			else 
+			else
 			{
 				if (EN_DEBUG) std::cout << "get IP error" << std::endl;
 			}
@@ -232,7 +252,7 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 			//释放dnsSeg
 		}
 		else {
-			if (EN_DEBUG) 
+			if (EN_DEBUG)
 				std::cout << "thread func get DNSSeg Error " << std::endl;
 		}
 	}
@@ -242,32 +262,32 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 	{
 		WaitForSingleObject(SQLMutex, INFINITE);
 		std::cout << " thread connect SQL error" << mysql_error(db) << std::endl;
-		ReleaseSemaphore(SQLMutex,1,NULL);
+		ReleaseSemaphore(SQLMutex, 1, NULL);
 	}
 	if (EN_DEBUG) {
 		std::cout << "thread end" << std::endl;
 	}
 
 	//结束后处理
-	
+
 	return 0;
 }
 
 
-void assignWork(DNSSeg *dnsSeg)
+void assignWork(DNSSeg* dnsSeg)
 {
-	DWORD waitResult=WaitForSingleObject(queueEmpty, 2000);
+	DWORD waitResult = WaitForSingleObject(queueEmpty, 2000);
 	//等待信号量，INFINITE表示永久
 	//等待队伍有空位，等待时长为1000ms
 	if (waitResult == WAIT_OBJECT_0) {
-		waitResult=WaitForSingleObject(queueMutex, 2000);
+		waitResult = WaitForSingleObject(queueMutex, 2000);
 		//等待任务队列的控制量
 		if (waitResult == WAIT_OBJECT_0)
 		{
 			taskQueue.push(dnsSeg);
-			ReleaseSemaphore(queueMutex,1,NULL);
+			ReleaseSemaphore(queueMutex, 1, NULL);
 			//释放任务队列控制信号
-			ReleaseSemaphore(queueFull,1,NULL);
+			ReleaseSemaphore(queueFull, 1, NULL);
 			//释放full信号
 		}
 		else {
@@ -279,7 +299,7 @@ void assignWork(DNSSeg *dnsSeg)
 		if (EN_DEBUG == 1)
 			std::cout << "wait empty  failed" << std::endl;
 	}
-	
+
 }
 
 
@@ -289,8 +309,10 @@ void processor(SOCKET fdSock) {
 	int client_len = sizeof(clientAddr);
 	char buffer[BUFFER_SIZE];
 	bool initRes = init();
-	if (initRes == false && EN_DEBUG)
+	if (initRes == false && EN_DEBUG) {
 		std::cout << "init failed" << std::endl;
+	}
+
 	while (initRes)
 	{
 		memset(buffer, 0x0, BUFFER_SIZE);
@@ -305,15 +327,15 @@ void processor(SOCKET fdSock) {
 		else
 		{
 			DNSSeg* dnsSeg = new DNSSeg;
-			memcpy(&(dnsSeg->clientAddr),&clientAddr,sizeof(clientAddr)) ;
-			recvDNS(buffer,BUFFER_SIZE,*dnsSeg);//生成dnsSeg
+			memcpy(&(dnsSeg->clientAddr), &clientAddr, sizeof(clientAddr));
+			recvDNS(buffer, BUFFER_SIZE, *dnsSeg);//生成dnsSeg
 			assignWork(dnsSeg);//分配dnsSeg任务
 		}
 	}
 }
 
 
-void recvDNS(char* buffer,int bufferSize,DNSSeg &dnsSeg) {
+void recvDNS(char* buffer, int bufferSize, DNSSeg& dnsSeg) {
 	//segment 头部 
 	dnsSeg.id = (unsigned short)(unsigned char)buffer[0] << 8 | (unsigned short)(unsigned char)buffer[1];
 	dnsSeg.flag = (unsigned short)buffer[2] << 8 | (unsigned short)buffer[3];
@@ -325,24 +347,24 @@ void recvDNS(char* buffer,int bufferSize,DNSSeg &dnsSeg) {
 	transFlag(dnsSeg.flag, dnsSeg.cflag);
 
 	//读取询问信息
-	dnsSeg.addrQue = new AddrQue* [dnsSeg.queNum];
-	unsigned short j=12;
-	for(unsigned short i = 0; i < dnsSeg.queNum; i++) {
+	dnsSeg.addrQue = new AddrQue * [dnsSeg.queNum];
+	unsigned short j = 12;
+	for (unsigned short i = 0; i < dnsSeg.queNum; i++) {
 		dnsSeg.addrQue[i] = new AddrQue;
 		unsigned short start = j;
-		while (buffer[j]!=0)
+		while (buffer[j] != 0)
 		{
-			j = j + buffer[j]+1 ;
+			j = j + buffer[j] + 1;
 		}
-		dnsSeg.addrQue[i]->addr = new char[j-start+1];
+		dnsSeg.addrQue[i]->addr = new char[j - start + 1];
 		memcpy(dnsSeg.addrQue[i]->addr, &buffer[start], j - start + 1);
-		dnsSeg.addrQue[i]->len = j-start+1;
+		dnsSeg.addrQue[i]->len = j - start + 1;
 		dnsSeg.addrQue[i]->begin = start;
 		//读取类型和class名称
-		dnsSeg.addrQue[i]->type= (unsigned short)buffer[j+1] << 8 | (unsigned short)buffer[j+2];
-		dnsSeg.addrQue[i]->qclass= (unsigned short)buffer[j+3] << 8 | (unsigned short)buffer[j+4];
-		
-		if (j + 5 < bufferSize) j+=5;
+		dnsSeg.addrQue[i]->type = (unsigned short)buffer[j + 1] << 8 | (unsigned short)buffer[j + 2];
+		dnsSeg.addrQue[i]->qclass = (unsigned short)buffer[j + 3] << 8 | (unsigned short)buffer[j + 4];
+
+		if (j + 5 < bufferSize) j += 5;
 	}
 	//直接拷贝整个区域用于转发所需
 	dnsSeg.source = new char[j];
@@ -350,10 +372,10 @@ void recvDNS(char* buffer,int bufferSize,DNSSeg &dnsSeg) {
 	dnsSeg.len = j;
 	dnsSeg.mid = false;
 
-	dnsSeg.addrAns =new AddrAns*[dnsSeg.queNum];
+	dnsSeg.addrAns = new AddrAns * [dnsSeg.queNum];
 	dnsSeg.ansNum = 0;
 
-	if (EN_DEBUG)
+	if (EN_DEBUG )
 	{
 		for (int i = 0; i < j; i++) {
 			if (i % 16 == 0)
@@ -363,18 +385,18 @@ void recvDNS(char* buffer,int bufferSize,DNSSeg &dnsSeg) {
 	}
 }
 
-void transFlag(short flag,DNSFlag &cflag) {
-	cflag.QR = (char)((unsigned  short)(flag&0x8000)>>15);
-	
-	cflag.OPcode= (char)((unsigned  short)(flag & 0x7800)>>11);
+void transFlag(short flag, DNSFlag& cflag) {
+	cflag.QR = (char)((unsigned  short)(flag & 0x8000) >> 15);
+
+	cflag.OPcode = (char)((unsigned  short)(flag & 0x7800) >> 11);
 
 	cflag.AA = (char)((unsigned  short)(flag & 0x0400) >> 10);
 
 	cflag.TC = (char)((unsigned  short)(flag & 0x0200) >> 9);
 
-	cflag.RD= (char)((unsigned  short)(flag & 0x0100) >> 8);
+	cflag.RD = (char)((unsigned  short)(flag & 0x0100) >> 8);
 
-	cflag.RA= (char)((unsigned  short)(flag & 0x0080) >> 7);
+	cflag.RA = (char)((unsigned  short)(flag & 0x0080) >> 7);
 
 	cflag.rcode = (char)((unsigned  short)(flag & 0x000f) >> 0);
 }
@@ -399,10 +421,10 @@ bool getIP(std::string& domain, std::string& IP) {
 	MYSQL_RES* queryRes = NULL;
 	MYSQL_ROW row;
 
-	std::string question="select ip from dns where domain = '";
+	std::string question = "select ip from dns where domain = '";
 	question = question + domain;
 	question = question + "'    ";
-	
+
 	int res = mysql_real_query(db, question.c_str(), (unsigned int)question.length());//查询成功是0
 	if (res) {
 		ReleaseSemaphore(SQLMutex, 1, NULL);
@@ -416,8 +438,8 @@ bool getIP(std::string& domain, std::string& IP) {
 			return false;
 		}
 		else {
-			if(row=mysql_fetch_row(queryRes))
-			IP = std::string(row[0]);
+			if (row = mysql_fetch_row(queryRes))
+				IP = std::string(row[0]);
 		}
 	}
 	mysql_free_result(queryRes);

@@ -2,6 +2,7 @@
 //author is zhuoran 
 //github. accout:AnimationFan
 #include <iostream>
+#include<fstream>
 #include<WinSock2.h>
 #include<WS2tcpip.h>
 #pragma comment(lib,"ws2_32.lib")
@@ -16,7 +17,7 @@
 #define POOL_SIZE 1
 #define QUEUE_SIZE 8
 #define BUFFER_SIZE 1024
-#define EN_DEBUG 0
+#define EN_DEBUG 1
 #define SQL_PARAM_SIZE 30
 #define TTL 300
 #define WORK_SHOW 1
