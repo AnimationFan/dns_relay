@@ -121,6 +121,10 @@ DWORD WINAPI ThreadFunc(LPVOID p) {
 	TIMEVAL outTime{ 2000,2000 };
 	setsockopt(tfdSock, SOL_SOCKET, SO_RCVTIMEO, (char*)& outTime, sizeof(outTime));
 	bool  createSock = true;
+
+	//设定DNS中继超时
+	TIMEVAL timeOut = {2000,2000};
+	setsockopt(tfdSock, SOL_SOCKET, SO_RCVTIMEO, (char*)& timeOut, sizeof(timeOut));
 	if (tfdSock == INVALID_SOCKET && EN_DEBUG)
 	{
 		std::cout << "thread create socket failed" << std::endl;
