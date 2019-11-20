@@ -20,7 +20,7 @@
 #define EN_DEBUG 0
 #define SQL_PARAM_SIZE 30
 #define TTL 300
-#define WORK_SHOW 1
+
 
 
 //。。。定义线程转发使用的起始端口
