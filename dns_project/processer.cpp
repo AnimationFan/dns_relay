@@ -89,6 +89,10 @@ DWORD WINAPI ThreadFunc(LPVOID p){
 	//创建用于中继查询的端口
 	SOCKET tfdSock = socket(AF_INET, SOCK_DGRAM, 0);
 	bool  createSock = true;
+
+	//设定DNS中继超时
+	TIMEVAL timeOut = {2000,2000};
+	setsockopt(tfdSock, SOL_SOCKET, SO_RCVTIMEO, (char*)& timeOut, sizeof(timeOut));
 	if (tfdSock == INVALID_SOCKET && EN_DEBUG)
 	{
 		std::cout << "thread create socket failed" << std::endl;
