@@ -77,7 +77,6 @@ void threadTest(int p,sockaddr_in dnsServer){
 						if (((IP.length() <= 16) && (dnsSeg->addrQue[i]->type == 0x0001))
 							|| ((IP.length() > 11) && (dnsSeg->addrQue[i]->type == 0x001c)))//防止IPV4地址发给IPv6报文
 							resGetIP = true;
-						
 					}
 
 					if ((!getResult) && EN_DEBUG)
