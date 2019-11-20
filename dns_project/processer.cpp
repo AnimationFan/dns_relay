@@ -116,6 +116,10 @@ DWORD WINAPI ThreadFunc(LPVOID p) {
 
 	//创建用于中继查询的端口
 	SOCKET tfdSock = socket(AF_INET, SOCK_DGRAM, 0);
+
+	//设定超时
+	TIMEVAL outTime{ 2000,2000 };
+	setsockopt(tfdSock, SOL_SOCKET, SO_RCVTIMEO, (char*)& outTime, sizeof(outTime));
 	bool  createSock = true;
 	if (tfdSock == INVALID_SOCKET && EN_DEBUG)
 	{
@@ -315,7 +319,6 @@ void processor(SOCKET fdSock) {
 
 	while (initRes)
 	{
-		memset(buffer, 0x0, BUFFER_SIZE);
 		int recvRes = recvfrom(fdSock, buffer, BUFFER_SIZE, 0, (SOCKADDR*)& clientAddr, &client_len);
 		if (recvRes <= 0)
 		{
@@ -424,6 +427,7 @@ bool getIP(std::string& domain, std::string& IP) {
 	std::string question = "select ip from dns where domain = '";
 	question = question + domain;
 	question = question + "'    ";
+	std::cout << question << std::endl;
 
 	int res = mysql_real_query(db, question.c_str(), (unsigned int)question.length());//查询成功是0
 	if (res) {
